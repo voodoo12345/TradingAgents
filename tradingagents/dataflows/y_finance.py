@@ -94,6 +94,21 @@ def get_stock_stats_indicators_window(
             "Usage: Apply 70/30 thresholds and watch for divergence to signal reversals. "
             "Tips: In strong trends, RSI may remain extreme; always cross-check with trend analysis."
         ),
+        "adx": (
+            "ADX: Measures trend strength regardless of direction. "
+            "Usage: Use rising ADX to confirm a strengthening trend; falling ADX to spot weakening momentum. "
+            "Tips: Pair with directional indicators (PDI/NDI) to understand trend direction."
+        ),
+        "pdi": (
+            "PDI (+DI): Positive directional indicator tracking upward trend pressure. "
+            "Usage: Rising PDI above NDI suggests bullish directional strength. "
+            "Tips: Combine with ADX to gauge trend conviction."
+        ),
+        "ndi": (
+            "NDI (-DI): Negative directional indicator tracking downward trend pressure. "
+            "Usage: Rising NDI above PDI suggests bearish directional strength. "
+            "Tips: Combine with ADX to gauge trend conviction."
+        ),
         # Volatility Indicators
         "boll": (
             "Bollinger Middle: A 20 SMA serving as the basis for Bollinger Bands. "

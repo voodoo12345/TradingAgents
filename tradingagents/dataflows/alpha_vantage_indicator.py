@@ -39,7 +39,10 @@ def get_indicator(
         "boll_ub": ("Bollinger Upper Band", "close"),
         "boll_lb": ("Bollinger Lower Band", "close"),
         "atr": ("ATR", None),
-        "vwma": ("VWMA", "close")
+        "vwma": ("VWMA", "close"),
+        "adx": ("ADX", None),
+        "pdi": ("PLUS_DI", None),
+        "ndi": ("MINUS_DI", None)
     }
 
     indicator_descriptions = {
@@ -54,7 +57,10 @@ def get_indicator(
         "boll_ub": "Bollinger Upper Band: Typically 2 standard deviations above the middle line. Usage: Signals potential overbought conditions and breakout zones. Tips: Confirm signals with other tools; prices may ride the band in strong trends.",
         "boll_lb": "Bollinger Lower Band: Typically 2 standard deviations below the middle line. Usage: Indicates potential oversold conditions. Tips: Use additional analysis to avoid false reversal signals.",
         "atr": "ATR: Averages true range to measure volatility. Usage: Set stop-loss levels and adjust position sizes based on current market volatility. Tips: It's a reactive measure, so use it as part of a broader risk management strategy.",
-        "vwma": "VWMA: A moving average weighted by volume. Usage: Confirm trends by integrating price action with volume data. Tips: Watch for skewed results from volume spikes; use in combination with other volume analyses."
+        "vwma": "VWMA: A moving average weighted by volume. Usage: Confirm trends by integrating price action with volume data. Tips: Watch for skewed results from volume spikes; use in combination with other volume analyses.",
+        "adx": "ADX: Measures trend strength regardless of direction. Usage: Use rising ADX to confirm a strengthening trend; falling ADX to spot weakening momentum. Tips: Pair with PDI/NDI to understand directional bias.",
+        "pdi": "PDI (+DI): Positive directional indicator tracking upward trend pressure. Usage: Rising PDI above NDI suggests bullish directional strength. Tips: Combine with ADX to gauge trend conviction.",
+        "ndi": "NDI (-DI): Negative directional indicator tracking downward trend pressure. Usage: Rising NDI above PDI suggests bearish directional strength. Tips: Combine with ADX to gauge trend conviction."
     }
 
     if indicator not in supported_indicators:
@@ -142,6 +148,27 @@ def get_indicator(
                 "time_period": str(time_period),
                 "datatype": "csv"
             })
+        elif indicator == "adx":
+            data = _make_api_request("ADX", {
+                "symbol": symbol,
+                "interval": interval,
+                "time_period": str(time_period),
+                "datatype": "csv"
+            })
+        elif indicator == "pdi":
+            data = _make_api_request("PLUS_DI", {
+                "symbol": symbol,
+                "interval": interval,
+                "time_period": str(time_period),
+                "datatype": "csv"
+            })
+        elif indicator == "ndi":
+            data = _make_api_request("MINUS_DI", {
+                "symbol": symbol,
+                "interval": interval,
+                "time_period": str(time_period),
+                "datatype": "csv"
+            })
         elif indicator == "vwma":
             # Alpha Vantage doesn't have direct VWMA, so we'll return an informative message
             # In a real implementation, this would need to be calculated from OHLCV data
@@ -166,7 +193,8 @@ def get_indicator(
             "macd": "MACD", "macds": "MACD_Signal", "macdh": "MACD_Hist",
             "boll": "Real Middle Band", "boll_ub": "Real Upper Band", "boll_lb": "Real Lower Band",
             "rsi": "RSI", "atr": "ATR", "close_10_ema": "EMA",
-            "close_50_sma": "SMA", "close_200_sma": "SMA"
+            "close_50_sma": "SMA", "close_200_sma": "SMA",
+            "adx": "ADX", "pdi": "PLUS_DI", "ndi": "MINUS_DI"
         }
 
         target_col_name = col_name_map.get(indicator)
