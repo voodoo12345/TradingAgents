@@ -3,6 +3,8 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 import yfinance as yf
 import os
+import math
+import pandas as pd
 from .stockstats_utils import StockstatsUtils
 
 def get_YFin_data_online(
@@ -115,11 +117,38 @@ def get_stock_stats_indicators_window(
             "Usage: Set stop-loss levels and adjust position sizes based on current market volatility. "
             "Tips: It's a reactive measure, so use it as part of a broader risk management strategy."
         ),
+        # Directional Strength Indicators
+        "adx": (
+            "ADX: Measures the strength of a trend without indicating direction. "
+            "Usage: Rising ADX suggests strengthening trends; low ADX indicates range-bound conditions. "
+            "Tips: Pair with directional indicators to determine trend direction."
+        ),
+        "plus_di": (
+            "+DI (Positive Directional Indicator): Measures bullish directional movement. "
+            "Usage: Crossovers with -DI can signal trend shifts. "
+            "Tips: Use with ADX to gauge trend strength."
+        ),
+        "minus_di": (
+            "-DI (Negative Directional Indicator): Measures bearish directional movement. "
+            "Usage: Crossovers with +DI can signal trend shifts. "
+            "Tips: Use with ADX to gauge trend strength."
+        ),
         # Volume-Based Indicators
         "vwma": (
             "VWMA: A moving average weighted by volume. "
             "Usage: Confirm trends by integrating price action with volume data. "
             "Tips: Watch for skewed results from volume spikes; use in combination with other volume analyses."
+        ),
+        "obv": (
+            "OBV (On-Balance Volume): Cumulative volume that adds volume on up days and subtracts on down days. "
+            "Usage: Confirm price trends via volume confirmation and divergence. "
+            "Tips: Divergence between OBV and price can signal weakening trends."
+        ),
+        # Trend Filters
+        "two_poles_trend_finder": (
+            "Two Poles Trend Finder: A smoothing filter that emphasizes underlying trend direction while reducing noise. "
+            "Usage: Track sustained trend shifts and potential inflection points. "
+            "Tips: Combine with momentum signals for confirmation."
         ),
         "mfi": (
             "MFI: The Money Flow Index is a momentum indicator that uses both price and volume to measure buying and selling pressure. "
@@ -184,6 +213,47 @@ def get_stock_stats_indicators_window(
     return result_str
 
 
+def _get_column_case_insensitive(data, column_name: str):
+    for col in data.columns:
+        if col.lower() == column_name.lower():
+            return data[col]
+    raise KeyError(f"Column '{column_name}' not found in data.")
+
+
+def _get_date_series(data):
+    for col in data.columns:
+        if col.lower() == "date":
+            return pd.to_datetime(data[col]).dt.strftime("%Y-%m-%d")
+    if isinstance(data.index, pd.DatetimeIndex):
+        return data.index.strftime("%Y-%m-%d")
+    return pd.to_datetime(data.index).strftime("%Y-%m-%d")
+
+
+def _calculate_obv(data):
+    close = _get_column_case_insensitive(data, "close")
+    volume = _get_column_case_insensitive(data, "volume")
+    price_diff = close.diff().fillna(0)
+    direction = price_diff.apply(lambda x: 1 if x > 0 else (-1 if x < 0 else 0))
+    return (direction * volume).cumsum()
+
+
+def _calculate_two_poles_trend_finder(close, period: int = 10):
+    a1 = math.exp(-1.414 * math.pi / period)
+    b1 = 2 * a1 * math.cos(1.414 * math.pi / period)
+    c2 = b1
+    c3 = -a1 * a1
+    c1 = 1 - c2 - c3
+    filtered = []
+    for i, price in enumerate(close):
+        if i < 2:
+            filtered.append(price)
+        else:
+            filtered.append(
+                c1 * (price + close.iloc[i - 1]) / 2 + c2 * filtered[i - 1] + c3 * filtered[i - 2]
+            )
+    return pd.Series(filtered, index=close.index)
+
+
 def _get_stock_stats_bulk(
     symbol: Annotated[str, "ticker symbol of the company"],
     indicator: Annotated[str, "technical indicator to calculate"],
@@ -195,7 +265,6 @@ def _get_stock_stats_bulk(
     Returns dict mapping date strings to indicator values.
     """
     from .config import get_config
-    import pandas as pd
     from stockstats import wrap
     import os
     
@@ -249,14 +318,35 @@ def _get_stock_stats_bulk(
         df = wrap(data)
         df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
     
+    indicator_key = indicator
+    if indicator == "plus_di":
+        indicator_key = "pdi"
+    elif indicator == "minus_di":
+        indicator_key = "ndi"
+
+    if indicator in {"obv", "two_poles_trend_finder"}:
+        date_series = _get_date_series(data)
+        if indicator == "obv":
+            indicator_series = _calculate_obv(data)
+        else:
+            close = _get_column_case_insensitive(data, "close")
+            indicator_series = _calculate_two_poles_trend_finder(close)
+        result_dict = {}
+        for date_str, value in zip(date_series, indicator_series):
+            if pd.isna(value):
+                result_dict[date_str] = "N/A"
+            else:
+                result_dict[date_str] = str(value)
+        return result_dict
+
     # Calculate the indicator for all rows at once
-    df[indicator]  # This triggers stockstats to calculate the indicator
+    df[indicator_key]  # This triggers stockstats to calculate the indicator
     
     # Create a dictionary mapping date strings to indicator values
     result_dict = {}
     for _, row in df.iterrows():
         date_str = row["Date"]
-        indicator_value = row[indicator]
+        indicator_value = row[indicator_key]
         
         # Handle NaN/None values
         if pd.isna(indicator_value):
@@ -278,10 +368,20 @@ def get_stockstats_indicator(
     curr_date_dt = datetime.strptime(curr_date, "%Y-%m-%d")
     curr_date = curr_date_dt.strftime("%Y-%m-%d")
 
+    if indicator in {"obv", "two_poles_trend_finder"}:
+        indicator_data = _get_stock_stats_bulk(symbol, indicator, curr_date)
+        return str(indicator_data.get(curr_date, ""))
+
+    indicator_key = indicator
+    if indicator == "plus_di":
+        indicator_key = "pdi"
+    elif indicator == "minus_di":
+        indicator_key = "ndi"
+
     try:
         indicator_value = StockstatsUtils.get_stock_stats(
             symbol,
-            indicator,
+            indicator_key,
             curr_date,
         )
     except Exception as e:
