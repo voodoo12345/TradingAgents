@@ -1,4 +1,41 @@
 from .alpha_vantage_common import _make_api_request
+import math
+import pandas as pd
+from io import StringIO
+
+
+def _calculate_two_poles_trend_finder(close, period: int = 10):
+    a1 = math.exp(-1.414 * math.pi / period)
+    b1 = 2 * a1 * math.cos(1.414 * math.pi / period)
+    c2 = b1
+    c3 = -a1 * a1
+    c1 = 1 - c2 - c3
+    filtered = []
+    for i, price in enumerate(close):
+        if i < 2:
+            filtered.append(price)
+        else:
+            filtered.append(
+                c1 * (price + close.iloc[i - 1]) / 2 + c2 * filtered[i - 1] + c3 * filtered[i - 2]
+            )
+    return pd.Series(filtered, index=close.index)
+
+
+def _get_time_series_daily(symbol: str) -> pd.DataFrame:
+    data = _make_api_request(
+        "TIME_SERIES_DAILY",
+        {
+            "symbol": symbol,
+            "outputsize": "full",
+            "datatype": "csv",
+        },
+    )
+    df = pd.read_csv(StringIO(data))
+    if "timestamp" not in df.columns:
+        df = df.rename(columns={df.columns[0]: "timestamp"})
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    return df.sort_values("timestamp")
+
 
 def get_indicator(
     symbol: str,
@@ -40,9 +77,11 @@ def get_indicator(
         "boll_lb": ("Bollinger Lower Band", "close"),
         "atr": ("ATR", None),
         "vwma": ("VWMA", "close"),
+        "obv": ("OBV", None),
         "adx": ("ADX", None),
-        "pdi": ("PLUS_DI", None),
-        "ndi": ("MINUS_DI", None)
+        "plus_di": ("PLUS_DI", None),
+        "minus_di": ("MINUS_DI", None),
+        "two_poles_trend_finder": ("Two Poles Trend Finder", None),
     }
 
     indicator_descriptions = {
@@ -58,9 +97,11 @@ def get_indicator(
         "boll_lb": "Bollinger Lower Band: Typically 2 standard deviations below the middle line. Usage: Indicates potential oversold conditions. Tips: Use additional analysis to avoid false reversal signals.",
         "atr": "ATR: Averages true range to measure volatility. Usage: Set stop-loss levels and adjust position sizes based on current market volatility. Tips: It's a reactive measure, so use it as part of a broader risk management strategy.",
         "vwma": "VWMA: A moving average weighted by volume. Usage: Confirm trends by integrating price action with volume data. Tips: Watch for skewed results from volume spikes; use in combination with other volume analyses.",
-        "adx": "ADX: Measures trend strength regardless of direction. Usage: Use rising ADX to confirm a strengthening trend; falling ADX to spot weakening momentum. Tips: Pair with PDI/NDI to understand directional bias.",
-        "pdi": "PDI (+DI): Positive directional indicator tracking upward trend pressure. Usage: Rising PDI above NDI suggests bullish directional strength. Tips: Combine with ADX to gauge trend conviction.",
-        "ndi": "NDI (-DI): Negative directional indicator tracking downward trend pressure. Usage: Rising NDI above PDI suggests bearish directional strength. Tips: Combine with ADX to gauge trend conviction."
+        "obv": "OBV (On-Balance Volume): Cumulative volume that adds volume on up days and subtracts on down days. Usage: Confirm price trends via volume confirmation and divergence. Tips: Divergence between OBV and price can signal weakening trends.",
+        "adx": "ADX: Measures the strength of a trend without indicating direction. Usage: Rising ADX suggests strengthening trends; low ADX indicates range-bound conditions. Tips: Pair with directional indicators to determine trend direction.",
+        "plus_di": "+DI (Positive Directional Indicator): Measures bullish directional movement. Usage: Crossovers with -DI can signal trend shifts. Tips: Use with ADX to gauge trend strength.",
+        "minus_di": "-DI (Negative Directional Indicator): Measures bearish directional movement. Usage: Crossovers with +DI can signal trend shifts. Tips: Use with ADX to gauge trend strength.",
+        "two_poles_trend_finder": "Two Poles Trend Finder: A smoothing filter that emphasizes underlying trend direction while reducing noise. Usage: Track sustained trend shifts and potential inflection points. Tips: Combine with momentum signals for confirmation.",
     }
 
     if indicator not in supported_indicators:
@@ -148,6 +189,12 @@ def get_indicator(
                 "time_period": str(time_period),
                 "datatype": "csv"
             })
+        elif indicator == "obv":
+            data = _make_api_request("OBV", {
+                "symbol": symbol,
+                "interval": interval,
+                "datatype": "csv"
+            })
         elif indicator == "adx":
             data = _make_api_request("ADX", {
                 "symbol": symbol,
@@ -155,20 +202,39 @@ def get_indicator(
                 "time_period": str(time_period),
                 "datatype": "csv"
             })
-        elif indicator == "pdi":
+        elif indicator == "plus_di":
             data = _make_api_request("PLUS_DI", {
                 "symbol": symbol,
                 "interval": interval,
                 "time_period": str(time_period),
                 "datatype": "csv"
             })
-        elif indicator == "ndi":
+        elif indicator == "minus_di":
             data = _make_api_request("MINUS_DI", {
                 "symbol": symbol,
                 "interval": interval,
                 "time_period": str(time_period),
                 "datatype": "csv"
             })
+        elif indicator == "two_poles_trend_finder":
+            df = _get_time_series_daily(symbol)
+            df["two_poles_trend_finder"] = _calculate_two_poles_trend_finder(
+                df["close"],
+                period=time_period,
+            )
+            df = df[(df["timestamp"] >= before) & (df["timestamp"] <= curr_date_dt)]
+            ind_string = ""
+            for _, row in df.iterrows():
+                ind_string += f"{row['timestamp'].strftime('%Y-%m-%d')}: {row['two_poles_trend_finder']}\n"
+            if not ind_string:
+                ind_string = "No data available for the specified date range.\n"
+            result_str = (
+                f"## {indicator.upper()} values from {before.strftime('%Y-%m-%d')} to {curr_date}:\n\n"
+                + ind_string
+                + "\n\n"
+                + indicator_descriptions.get(indicator, "No description available.")
+            )
+            return result_str
         elif indicator == "vwma":
             # Alpha Vantage doesn't have direct VWMA, so we'll return an informative message
             # In a real implementation, this would need to be calculated from OHLCV data
@@ -194,7 +260,7 @@ def get_indicator(
             "boll": "Real Middle Band", "boll_ub": "Real Upper Band", "boll_lb": "Real Lower Band",
             "rsi": "RSI", "atr": "ATR", "close_10_ema": "EMA",
             "close_50_sma": "SMA", "close_200_sma": "SMA",
-            "adx": "ADX", "pdi": "PLUS_DI", "ndi": "MINUS_DI"
+            "obv": "OBV", "adx": "ADX", "plus_di": "PLUS_DI", "minus_di": "MINUS_DI"
         }
 
         target_col_name = col_name_map.get(indicator)
