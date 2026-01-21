@@ -20,4 +20,15 @@ def get_indicators(
     Returns:
         str: A formatted dataframe containing the technical indicators for the specified ticker symbol and indicator.
     """
-    return route_to_vendor("get_indicators", symbol, indicator, curr_date, look_back_days)
+    indicator_aliases = {
+        "plus_di": "pdi",
+        "minus_di": "ndi",
+    }
+    normalized_indicator = indicator_aliases.get(indicator, indicator)
+    return route_to_vendor(
+        "get_indicators",
+        symbol,
+        normalized_indicator,
+        curr_date,
+        look_back_days,
+    )
