@@ -71,11 +71,20 @@ def _make_api_request(function_name: str, params: dict) -> dict | str:
     # Check if response is JSON (error responses are typically JSON)
     try:
         response_json = json.loads(response_text)
-        # Check for rate limit error
+        # Check for rate limit or entitlement errors
         if "Information" in response_json:
             info_message = response_json["Information"]
-            if "rate limit" in info_message.lower() or "api key" in info_message.lower():
-                raise AlphaVantageRateLimitError(f"Alpha Vantage rate limit exceeded: {info_message}")
+            lowered_message = info_message.lower()
+            if "rate limit" in lowered_message or "api key" in lowered_message:
+                raise AlphaVantageRateLimitError(
+                    f"Alpha Vantage rate limit exceeded: {info_message}"
+                )
+            if "premium" in lowered_message or "subscription" in lowered_message:
+                raise ValueError(f"Alpha Vantage entitlement error: {info_message}")
+        if "Error Message" in response_json:
+            raise ValueError(
+                f"Alpha Vantage API error: {response_json['Error Message']}"
+            )
     except json.JSONDecodeError:
         # Response is not JSON (likely CSV data), which is normal
         pass
