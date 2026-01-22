@@ -155,7 +155,7 @@ An interface will appear showing results as they load, letting you track the age
 
 ### Implementation Details
 
-We built TradingAgents with LangGraph to ensure flexibility and modularity. We utilize `gpt5.2-thinking` as our deep thinking and fast thinking LLMs for our experiments. However, for testing purposes, we recommend you use `gpt5.2-thinking` to save on costs as our framework makes **lots of** API calls.
+We built TradingAgents with LangGraph to ensure flexibility and modularity. We utilize `gpt-5` (deep thinking) and `gpt-5-mini` (fast thinking) LLMs for our experiments. However, for testing purposes, we recommend using `gpt-5-mini` to save on costs as our framework makes **lots of** API calls.
 
 ### Python Usage
 
