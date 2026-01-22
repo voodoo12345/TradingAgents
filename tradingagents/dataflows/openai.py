@@ -27,19 +27,42 @@ def _get_openai_text_response(client, model, prompt, tools):
         )
         return response.output[1].content[0].text
 
-    response = client.chat.completions.create(
-        model=model,
-        messages=[
-            {
-                "role": "system",
-                "content": prompt,
-            }
-        ],
-        temperature=1,
-        max_tokens=4096,
-        top_p=1,
-    )
-    return response.choices[0].message.content
+    if not tools:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": prompt,
+                }
+            ],
+            temperature=1,
+            max_tokens=4096,
+            top_p=1,
+        )
+        return response.choices[0].message.content
+
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": prompt,
+                }
+            ],
+            tools=tools,
+            tool_choice="auto",
+            temperature=1,
+            max_tokens=4096,
+            top_p=1,
+        )
+        return response.choices[0].message.content
+    except TypeError as exc:
+        raise RuntimeError(
+            "OpenAI chat.completions does not support tools; "
+            "unable to perform web search fallback."
+        ) from exc
 
 
 def get_stock_news_openai(query, start_date, end_date):
