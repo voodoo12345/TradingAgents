@@ -1,5 +1,7 @@
 from typing import Optional
 import datetime
+import sys
+import io
 import typer
 from pathlib import Path
 from functools import wraps
@@ -29,7 +31,14 @@ from tradingagents.default_config import DEFAULT_CONFIG
 from cli.models import AnalystType
 from cli.utils import *
 
-console = Console()
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+else:
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+
+console = Console(file=sys.stdout)
 
 app = typer.Typer(
     name="TradingAgents",
