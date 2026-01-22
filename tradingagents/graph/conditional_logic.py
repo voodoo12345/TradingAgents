@@ -2,6 +2,8 @@
 
 from tradingagents.agents.utils.agent_states import AgentState
 
+from .market_trend import is_bullish_trend
+
 
 class ConditionalLogic:
     """Handles conditional logic for determining graph flow."""
@@ -42,6 +44,12 @@ class ConditionalLogic:
         if last_message.tool_calls:
             return "tools_fundamentals"
         return "Msg Clear Fundamentals"
+
+    def should_continue_after_market(self, state: AgentState) -> str:
+        """Determine if downstream agents should run after market analysis."""
+        if is_bullish_trend(state.get("market_report", "")):
+            return "continue"
+        return "wait"
 
     def should_continue_debate(self, state: AgentState) -> str:
         """Determine if debate should continue."""

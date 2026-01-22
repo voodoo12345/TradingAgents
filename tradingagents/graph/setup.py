@@ -52,6 +52,12 @@ class GraphSetup:
         if len(selected_analysts) == 0:
             raise ValueError("Trading Agents Graph Setup Error: no analysts selected!")
 
+        if "market" in selected_analysts:
+            selected_analysts = [
+                "market",
+                *[analyst for analyst in selected_analysts if analyst != "market"],
+            ]
+
         # Create analyst nodes
         analyst_nodes = {}
         delete_nodes = {}
@@ -125,6 +131,7 @@ class GraphSetup:
         workflow.add_node("Neutral Analyst", neutral_analyst)
         workflow.add_node("Safe Analyst", safe_analyst)
         workflow.add_node("Risk Judge", risk_manager_node)
+        workflow.add_node("Wait", self._create_wait_node())
 
         # Define edges
         # Start with the first analyst
@@ -148,9 +155,23 @@ class GraphSetup:
             # Connect to next analyst or to Bull Researcher if this is the last analyst
             if i < len(selected_analysts) - 1:
                 next_analyst = f"{selected_analysts[i+1].capitalize()} Analyst"
-                workflow.add_edge(current_clear, next_analyst)
+                if analyst_type == "market":
+                    workflow.add_conditional_edges(
+                        current_clear,
+                        self.conditional_logic.should_continue_after_market,
+                        {"continue": next_analyst, "wait": "Wait"},
+                    )
+                else:
+                    workflow.add_edge(current_clear, next_analyst)
             else:
-                workflow.add_edge(current_clear, "Bull Researcher")
+                if analyst_type == "market":
+                    workflow.add_conditional_edges(
+                        current_clear,
+                        self.conditional_logic.should_continue_after_market,
+                        {"continue": "Bull Researcher", "wait": "Wait"},
+                    )
+                else:
+                    workflow.add_edge(current_clear, "Bull Researcher")
 
         # Add remaining edges
         workflow.add_conditional_edges(
@@ -197,6 +218,38 @@ class GraphSetup:
         )
 
         workflow.add_edge("Risk Judge", END)
+        workflow.add_edge("Wait", END)
 
         # Compile and return
         return workflow.compile()
+
+    @staticmethod
+    def _create_wait_node():
+        def wait_node(state: AgentState) -> Dict[str, Any]:
+            return {
+                "investment_debate_state": {
+                    "bull_history": "",
+                    "bear_history": "",
+                    "history": "",
+                    "current_response": "",
+                    "judge_decision": "",
+                    "count": 0,
+                },
+                "risk_debate_state": {
+                    "risky_history": "",
+                    "safe_history": "",
+                    "neutral_history": "",
+                    "history": "",
+                    "latest_speaker": "Wait",
+                    "current_risky_response": "",
+                    "current_safe_response": "",
+                    "current_neutral_response": "",
+                    "judge_decision": "",
+                    "count": 0,
+                },
+                "investment_plan": "等待机会",
+                "trader_investment_plan": "等待机会",
+                "final_trade_decision": "等待机会",
+            }
+
+        return wait_node
