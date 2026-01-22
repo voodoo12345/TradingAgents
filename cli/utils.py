@@ -128,7 +128,7 @@ def select_shallow_thinking_agent(provider) -> str:
     # Define shallow thinking llm engine options with their corresponding model names
     SHALLOW_AGENT_OPTIONS = {
         "openai": [
-            ("GPT-5.2 Thinking - Default reasoning model", "gpt5.2-thinking"),
+            ("GPT-5 Mini - Default quick-thinking model", "gpt-5-mini"),
         ],
         "anthropic": [
             ("Claude Haiku 3.5 - Fast inference and standard capabilities", "claude-3-5-haiku-latest"),
@@ -183,7 +183,7 @@ def select_deep_thinking_agent(provider) -> str:
     # Define deep thinking llm engine options with their corresponding model names
     DEEP_AGENT_OPTIONS = {
         "openai": [
-            ("GPT-5.2 Thinking - Default reasoning model", "gpt5.2-thinking"),
+            ("GPT-5 - Default deep-thinking model", "gpt-5"),
         ],
         "anthropic": [
             ("Claude Haiku 3.5 - Fast inference and standard capabilities", "claude-3-5-haiku-latest"),
